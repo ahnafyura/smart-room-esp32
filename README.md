@@ -4,6 +4,8 @@ Proyek praktik **Pertemuan 4 — Integrasi Software & Hardware** (Ekstrakurikule
 
 ESP32 membaca suhu & kelembapan dari sensor DHT22, mengirimnya lewat internet (MQTT) ke **web app**, dan LED bisa dinyalakan/dimatikan dari web app. Semua dijalankan di simulator **[Wokwi](https://wokwi.com)**, tanpa alat fisik.
 
+📄 **Modul lengkap (langkah bergambar, penjelasan konsep, soal tantangan, checklist): [materi_pertemuan4.pdf](materi_pertemuan4.pdf)**
+
 ```
 [DHT22] -> [ESP32] --WiFi--> [broker.emqx.io] --internet--> [app.html]
                ^                                                |
@@ -20,6 +22,7 @@ ESP32 membaca suhu & kelembapan dari sensor DHT22, mengirimnya lewat internet (M
 | `modul2_kirim_ke_app.ino` | Modul 2 — kirim suhu & kelembapan ke web app (ESP32 → App) |
 | `modul3_kontrol_dari_app.ino` | Modul 3 — dua arah: kirim suhu + terima perintah lampu (App → ESP32) |
 | `app.html` | Web app "Smart Room": tampilkan suhu, tombol lampu, log pesan |
+| `materi_pertemuan4.pdf` | Modul praktik lengkap (9 halaman) dengan screenshot dan soal tantangan |
 
 ## Cara pakai
 

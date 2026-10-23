@@ -1,0 +1,135 @@
+<!doctype html>
+<!--
+  Web App "Smart Room" - Pertemuan 4
+  Cara pakai: simpan file ini, klik 2x untuk membuka di browser (Chrome/Edge/HP).
+  Isi nama kelompok yang SAMA dengan di kode ESP32, lalu klik "Sambungkan".
+-->
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Smart Room SMAN 19</title>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<style>
+  :root { --navy:#0f3a5c; --biru:#2b9bd8; --kuning:#f5c518; --bg:#eef1f4; --kartu:#ffffff; --teks:#1d2b36; --abu:#6b7a87; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: "Lato", "Segoe UI", sans-serif; background: var(--bg); color: var(--teks); }
+  header { background: var(--navy); color:#fff; padding: 18px 20px; border-bottom: 4px solid var(--kuning); }
+  header h1 { margin:0; font-size: 20px; letter-spacing: .5px; }
+  header p { margin:4px 0 0; font-size: 13px; opacity:.8; }
+  main { max-width: 460px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+  .kartu { background: var(--kartu); border-radius: 10px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  .baris { display:flex; gap:8px; }
+  input { flex:1; padding:10px 12px; border:1px solid #cdd6de; border-radius:8px; font-size:15px; }
+  button { border:0; border-radius:8px; padding:10px 14px; font-size:15px; font-weight:700; cursor:pointer; }
+  .utama { background: var(--biru); color:#fff; }
+  .status { margin-top:10px; font-size:13px; color: var(--abu); }
+  .status b { color: var(--teks); }
+  .titik { display:inline-block; width:9px; height:9px; border-radius:50%; background:#c0392b; margin-right:6px; }
+  .titik.on { background:#27ae60; }
+  .sensor { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+  .label { font-size:12px; text-transform:uppercase; letter-spacing:1px; color: var(--abu); font-weight:700; }
+  .nilai { font-size: 40px; font-weight: 800; color: var(--navy); margin-top:6px; }
+  .nilai small { font-size: 18px; color: var(--abu); font-weight:600; }
+  .peringatan { display:none; background:#fff4cc; border-left:4px solid var(--kuning); padding:10px 12px; border-radius:6px; font-size:14px; }
+  .lampu { display:flex; align-items:center; justify-content:space-between; }
+  .bohlam { width:54px; height:54px; border-radius:50%; background:#d5dbe0; transition:.3s; }
+  .bohlam.on { background: var(--kuning); box-shadow: 0 0 24px 6px rgba(245,197,24,.7); }
+  .tombol { display:flex; gap:8px; margin-top:12px; }
+  .tombol button { flex:1; }
+  .nyala { background: var(--kuning); color: var(--navy); }
+  .mati { background: var(--navy); color:#fff; }
+  #log { font-family: ui-monospace, monospace; font-size:12px; color: var(--abu); max-height:120px; overflow:auto; margin:8px 0 0; padding:0; list-style:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SMART ROOM</h1>
+  <p>Monitor suhu &amp; kontrol lampu ESP32 dari browser</p>
+</header>
+<main>
+  <section class="kartu">
+    <div class="label">Nama kelompok</div>
+    <div class="baris" style="margin-top:8px">
+      <input id="kelompok" value="kelompok1">
+      <button class="utama" onclick="sambungkan()">Sambungkan</button>
+    </div>
+    <div class="status"><span id="titik" class="titik"></span><span id="status">Belum tersambung</span></div>
+  </section>
+
+  <section class="sensor">
+    <div class="kartu"><div class="label">Suhu</div><div class="nilai"><span id="suhu">--</span><small> °C</small></div></div>
+    <div class="kartu"><div class="label">Kelembapan</div><div class="nilai"><span id="lembap">--</span><small> %</small></div></div>
+  </section>
+
+  <div id="peringatan" class="peringatan">Ruangan panas! Suhu di atas 30 °C.</div>
+
+  <section class="kartu">
+    <div class="lampu">
+      <div><div class="label">Lampu (LED pin 14)</div><div id="statusLampu" style="margin-top:6px;font-weight:700">MATI</div></div>
+      <div id="bohlam" class="bohlam"></div>
+    </div>
+    <div class="tombol">
+      <button class="nyala" onclick="kirimLampu('ON')">Nyalakan</button>
+      <button class="mati" onclick="kirimLampu('OFF')">Matikan</button>
+    </div>
+  </section>
+
+  <section class="kartu">
+    <div class="label">Log pesan</div>
+    <ul id="log"></ul>
+  </section>
+</main>
+
+<script>
+  const BROKER = "wss://broker.emqx.io:8084/mqtt";
+  let klien = null;
+  let topik = "";
+
+  function catat(teks) {
+    const li = document.createElement("li");
+    li.textContent = new Date().toLocaleTimeString("id-ID") + "  " + teks;
+    document.getElementById("log").prepend(li);
+  }
+
+  function sambungkan() {
+    if (klien) klien.end();
+    topik = "sman19/" + document.getElementById("kelompok").value.trim();
+    document.getElementById("status").textContent = "Menyambung...";
+    klien = mqtt.connect(BROKER);
+
+    klien.on("connect", () => {
+      document.getElementById("titik").classList.add("on");
+      document.getElementById("status").innerHTML = "Tersambung ke <b>" + topik + "</b>";
+      klien.subscribe(topik + "/#");
+      catat("Tersambung, menunggu data ESP32...");
+    });
+
+    klien.on("message", (t, isi) => {
+      const pesan = isi.toString();
+      if (t === topik + "/suhu") {
+        document.getElementById("suhu").textContent = pesan;
+        document.getElementById("peringatan").style.display = parseFloat(pesan) > 30 ? "block" : "none";
+      } else if (t === topik + "/lembap") {
+        document.getElementById("lembap").textContent = pesan;
+      } else if (t === topik + "/lampu") {
+        const on = pesan === "ON";
+        document.getElementById("bohlam").classList.toggle("on", on);
+        document.getElementById("statusLampu").textContent = on ? "NYALA" : "MATI";
+      }
+      catat(t.replace(topik + "/", "") + " = " + pesan);
+    });
+
+    klien.on("close", () => {
+      document.getElementById("titik").classList.remove("on");
+      document.getElementById("status").textContent = "Terputus";
+    });
+  }
+
+  function kirimLampu(perintah) {
+    if (!klien || !klien.connected) { alert("Sambungkan dulu!"); return; }
+    klien.publish(topik + "/lampu", perintah);
+  }
+</script>
+</body>
+</html>
